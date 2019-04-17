@@ -61,10 +61,32 @@ void externalCommand(char *argv[]) {
 }
 
 //-----------------------------------------------------------------------------
+// executes command and returns returns 1 if internal, 0 if not
+
+int internalCommand(char *argv[]) {
+    char *cmd = argv[0];
+
+    if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "logout") == 0) {
+        // $ terminate if internal command 'exit' or 'logout'
+        exit(0);
+    } else if (strcmp(cmd, "cd") == 0) {
+        // $ cd to path or HOME path if none given
+        char *path = argv[1];
+        chdir(path != NULL ? path : getenv("HOME"));
+
+        // $ 1 if internal command
+        return 1;
+    } else {
+        // $ 0 if external command
+        return 0;
+    }
+}
+
+//-----------------------------------------------------------------------------
 // execute command if not NULL pointer (invalid or "empty" command)
 
 void executeCommand(char *argv[]) {
-    if (argv[0] != NULL) {
+    if (argv[0] != NULL && !internalCommand(argv)) {
         externalCommand(argv);
     }
 }
