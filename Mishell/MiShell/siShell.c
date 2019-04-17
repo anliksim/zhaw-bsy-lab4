@@ -21,17 +21,36 @@
 #define MAX_ARGV  16                    // max number of command line arguments
 #define STR_LEN  255                    // max length of command line arguments
 #define CMD_DL " "
+#define MAX_REDIR 2
+#define REDIR_IN "<"
+#define REDIR_IN_IDX 0
+#define REDIR_OUT ">"
+#define REDIR_OUT_IDX 1
+
 //*****************************************************************************
 // split command line into tokens and store tokens -> argv[]
 
 // !!!! only one token is implemented here 
 
-void tokenizeCommand(char *cmdLine, char *argv[]) {
+void tokenizeCommand(char *cmdLine, char *argv[], char *redir[]) {
     const char *errMsg = "\n*** too many arguments ***\n";
     int idx = 0;
+    char *token;
 
     argv[idx++] = strtok(cmdLine, CMD_DL);  // get first word
-    while ((argv[idx++] = strtok(NULL, CMD_DL)) != NULL); // continue until end is reached
+    while ((token = strtok(NULL, CMD_DL)) != NULL) { // $ continue until end is reached
+
+        if (strcmp(token, REDIR_IN) == 0) {
+            // $ write left redirects to index 0
+            redir[REDIR_IN_IDX] = token;
+        } else if (strcmp(token, REDIR_OUT) == 0) {
+            // $ write right redirects to index 1
+            redir[REDIR_OUT_IDX] = strtok(NULL, CMD_DL);
+        } else {
+            // $ add arguments to argv
+            argv[idx++] = token;
+        }
+    }
 
     if (idx < MAX_ARGV)
         argv[idx] = NULL;                   // terminate argument list by NULL
@@ -44,7 +63,19 @@ void tokenizeCommand(char *cmdLine, char *argv[]) {
 //-----------------------------------------------------------------------------
 // execute an external command, exit on failure of fork
 
-void externalCommand(char *argv[]) {
+void externalCommand(char *argv[], char *redir[]) {
+
+    int fdr, fdw;
+    char buf[100];
+
+    if (redir[REDIR_IN_IDX] != NULL) {
+        fdr = open(redir[REDIR_IN_IDX], O_RDONLY);
+        read(fdr, &buf, 100);
+    } else if (redir[REDIR_OUT_IDX] != NULL) {
+        close(1);
+        fdw = open(redir[REDIR_OUT_IDX], O_CREAT | O_TRUNC | O_WRONLY, 0644);
+    }
+
     pid_t PID;                          // process identifier
     if ((PID = fork()) == 0) {          // fork child process
         execvp(argv[0],  &argv[0]);     // execute command
@@ -58,6 +89,15 @@ void externalCommand(char *argv[]) {
     else  {                             // here we are parents
         wait(0);                        // wait for child process to terminate
     }
+
+    if (redir[REDIR_IN_IDX] != NULL) {
+        close(fdr);
+        redir[REDIR_IN_IDX] = NULL;
+    } else if (redir[REDIR_OUT_IDX] != NULL) {
+        close(fdw);
+        redir[REDIR_OUT_IDX] = NULL;
+    }
+
 }
 
 //-----------------------------------------------------------------------------
@@ -85,9 +125,9 @@ int internalCommand(char *argv[]) {
 //-----------------------------------------------------------------------------
 // execute command if not NULL pointer (invalid or "empty" command)
 
-void executeCommand(char *argv[]) {
+void executeCommand(char *argv[], char *redir[]) {
     if (argv[0] != NULL && !internalCommand(argv)) {
-        externalCommand(argv);
+        externalCommand(argv, redir);
     }
 }
 
@@ -97,12 +137,13 @@ void executeCommand(char *argv[]) {
 int main(void) {
     char  *argv[MAX_ARGV];              // pointer to command line arguments
     char  buf[STR_LEN];                 // buffer for command line and command
+    char  *redir[MAX_REDIR];            // $
 
-    while (1) {    
+    while (1) {
         printf("si ? ");                // print prompt
         readline(buf, STR_LEN);         // read one line from stdin 
-        tokenizeCommand(buf, argv);     // split command line into tokens
-        executeCommand(argv);           // execute command
+        tokenizeCommand(buf, argv, redir);     // split command line into tokens
+        executeCommand(argv, redir);           // execute command
     }      
     exit(0);
 }
