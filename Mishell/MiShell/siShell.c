@@ -42,7 +42,7 @@ void tokenizeCommand(char *cmdLine, char *argv[], char *redir[]) {
 
         if (strcmp(token, REDIR_IN) == 0) {
             // $ write left redirects to index 0
-            redir[REDIR_IN_IDX] = token;
+            redir[REDIR_IN_IDX] = strtok(NULL, CMD_DL);
         } else if (strcmp(token, REDIR_OUT) == 0) {
             // $ write right redirects to index 1
             redir[REDIR_OUT_IDX] = strtok(NULL, CMD_DL);
@@ -65,22 +65,31 @@ void tokenizeCommand(char *cmdLine, char *argv[], char *redir[]) {
 
 void externalCommand(char *argv[], char *redir[]) {
 
-    int fdr, fdw;
-    char buf[100];
-
-    if (redir[REDIR_IN_IDX] != NULL) {
-        fdr = open(redir[REDIR_IN_IDX], O_RDONLY);
-        read(fdr, &buf, 100);
-    } else if (redir[REDIR_OUT_IDX] != NULL) {
-        close(1);
-        fdw = open(redir[REDIR_OUT_IDX], O_CREAT | O_TRUNC | O_WRONLY, 0644);
-    }
 
     pid_t PID;                          // process identifier
     if ((PID = fork()) == 0) {          // fork child process
+
+        int fdr, fdw;
+        if (redir[REDIR_IN_IDX] != NULL) {
+            close(0); // $ close stdin stream
+            fdr = open(redir[REDIR_IN_IDX], O_RDONLY); // $ open file read stream
+        }
+        else if (redir[REDIR_OUT_IDX] != NULL) {
+            close(1); // $ close stout stream
+            fdw = open(redir[REDIR_OUT_IDX], O_CREAT | O_TRUNC | O_WRONLY, 0644); // $ open file write stream
+        }
+
         execvp(argv[0],  &argv[0]);     // execute command
         printf("!!! panic !!!\n");      // should not come here
-            exit(-1);                   // if we came here ... we have to exit
+        exit(-1);                       // if we came here ... we have to exit
+
+        // $ clean up
+        if (redir[REDIR_IN_IDX] != NULL) {
+            close(fdr); // $ close file read stream
+        }
+        else if (redir[REDIR_OUT_IDX] != NULL) {
+            close(fdw); // $ close file write stream
+        }
     }
     else if (PID < 0) {
         printf("fork failed\n");        // fork didn't succeed
@@ -89,15 +98,6 @@ void externalCommand(char *argv[], char *redir[]) {
     else  {                             // here we are parents
         wait(0);                        // wait for child process to terminate
     }
-
-    if (redir[REDIR_IN_IDX] != NULL) {
-        close(fdr);
-        redir[REDIR_IN_IDX] = NULL;
-    } else if (redir[REDIR_OUT_IDX] != NULL) {
-        close(fdw);
-        redir[REDIR_OUT_IDX] = NULL;
-    }
-
 }
 
 //-----------------------------------------------------------------------------
@@ -137,9 +137,12 @@ void executeCommand(char *argv[], char *redir[]) {
 int main(void) {
     char  *argv[MAX_ARGV];              // pointer to command line arguments
     char  buf[STR_LEN];                 // buffer for command line and command
-    char  *redir[MAX_REDIR];            // $
+    char  *redir[MAX_REDIR];            // $ redirect buffer
 
     while (1) {
+        redir[REDIR_IN_IDX] = NULL;     // $ reset redir
+        redir[REDIR_OUT_IDX] = NULL;    // $ reset redir
+
         printf("si ? ");                // print prompt
         readline(buf, STR_LEN);         // read one line from stdin 
         tokenizeCommand(buf, argv, redir);     // split command line into tokens

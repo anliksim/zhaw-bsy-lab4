@@ -31,7 +31,7 @@ void tokenizeCommand(char *cmdLine, char *argv[]) {
     int idx = 0;
 
     argv[idx++] = strtok(cmdLine, CMD_DL);  // get first word
-    while ((argv[idx++] = strtok(NULL, CMD_DL)) != NULL); // continue until end is reached
+    while ((argv[idx++] = strtok(NULL, CMD_DL)) != NULL); // $ continue until end is reached
 
     if (idx < MAX_ARGV)
         argv[idx] = NULL;                   // terminate argument list by NULL
